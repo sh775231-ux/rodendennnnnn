@@ -232,10 +232,10 @@ var GIFTS=[
 // --------------------
 // Google Sheets integration:
 // Paste your deployed Google Apps Script Web App URL between the quotes below.
-var SHEETS_WEB_APP_URL = "1wn9Dl8XmZDkM9ahp8QMtYyFtUoPvtUHK;
+var SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzYfURxHII5_zra5zWKfjjDgmEDJ1NhvmB8JrkPXbApeqxnZYPXyIIj5dQDdzYDjmER/exec;
 
 function sendToSheets(payload){
-  if(!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("https://script.google.com/macros/s/AKfycbzYfURxHII5_zra5zWKfjjDgmEDJ1NhvmB8JrkPXbApeqxnZYPXyIIj5dQDdzYDjmER/exec") === 0) return;
+  if(!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("PASTE_YOUR_") === 0) return;
   try {
     fetch(SHEETS_WEB_APP_URL, {
       method: "POST",
