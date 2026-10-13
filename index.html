@@ -235,7 +235,7 @@ var GIFTS=[
 var SHEETS_WEB_APP_URL = "1wn9Dl8XmZDkM9ahp8QMtYyFtUoPvtUHK;
 
 function sendToSheets(payload){
-  if(!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("PASTE_YOUR_") === 0) return;
+  if(!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("https://script.google.com/macros/s/AKfycbzYfURxHII5_zra5zWKfjjDgmEDJ1NhvmB8JrkPXbApeqxnZYPXyIIj5dQDdzYDjmER/exec") === 0) return;
   try {
     fetch(SHEETS_WEB_APP_URL, {
       method: "POST",
