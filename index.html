@@ -82,6 +82,11 @@ html,body{overflow:hidden;scroll-snap-type:none;height:100%}
 .slide{flex:0 0 20%;width:20%;height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;scroll-snap-align:none;justify-content:flex-start;padding:max(44px,calc(env(safe-area-inset-top,0px) + 24px)) 22px 120px;box-shadow:inset -18px 0 28px -22px #000}
 .slide .inner{margin:auto}
 #sps{position:fixed;inset:0;pointer-events:none;z-index:3;overflow:hidden}
+/* Mobile tap fix: decorative layer must never intercept controls. */
+#sps .sp{pointer-events:none}
+.pager{z-index:1000;isolation:isolate;pointer-events:auto}
+.pager button,.pager .pd button{position:relative;z-index:1001;pointer-events:auto;touch-action:manipulation}
+.slide{-webkit-overflow-scrolling:touch;touch-action:pan-y}
 #cf{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:20}
 .pager{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px calc(14px + env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(20,10,31,0),rgba(20,10,31,.95) 45%)}
 .pager .btn{padding:11px 22px}
@@ -234,14 +239,36 @@ var GIFTS=[
 // Paste your deployed Google Apps Script Web App URL between the quotes below.
 var SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzYfURxHII5_zra5zWKfjjDgmEDJ1NhvmB8JrkPXbApeqxnZYPXyIIj5dQDdzYDjmER/exec";
 
-function sendToSheets(payload){
-  function loadTakenFromSheets() {
+function sendToSheets(payload) {
+  if (!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("PASTE_YOUR_") === 0) return;
+  try {
+    fetch(SHEETS_WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    }).catch(function(err) {
+      console.warn("Google Sheets send failed", err);
+    });
+  } catch (e) {
+    console.warn("Google Sheets send failed", e);
+  }
+}
+
+// Read shared gift reservations from Google Apps Script.
+function loadTakenFromSheets() {
   if (!SHEETS_WEB_APP_URL) return;
 
-  var callback = '__giftState_' + Date.now() + '_' +
-    Math.floor(Math.random() * 100000);
+  var callback = "__giftState_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+  var script = document.createElement("script");
+  var finished = false;
 
-  var script = document.createElement('script');
+  function cleanup() {
+    if (finished) return;
+    finished = true;
+    try { delete window[callback]; } catch (e) { window[callback] = undefined; }
+    if (script.parentNode) script.parentNode.removeChild(script);
+  }
 
   window[callback] = function(data) {
     try {
@@ -249,34 +276,22 @@ function sendToSheets(payload){
         taken = data.taken;
         window.__sheetsGiftSync = true;
         renderGifts();
+      } else if (data && data.ok === false) {
+        console.warn("Could not read shared gift reservations", data.error || "Unknown error");
       }
     } finally {
-      delete window[callback];
-      script.remove();
+      cleanup();
     }
   };
 
   script.onerror = function() {
-    delete window[callback];
-    script.remove();
+    cleanup();
+    console.warn("Google Sheets gift sync failed");
   };
-
-  script.src = SHEETS_WEB_APP_URL +
-    '?callback=' + callback +
-    '&_=' + Date.now();
-
+  script.src = SHEETS_WEB_APP_URL + "?callback=" + encodeURIComponent(callback) + "&_=" + Date.now();
   document.head.appendChild(script);
 }
-  if(!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("PASTE_YOUR_") === 0) return;
-  try {
-    fetch(SHEETS_WEB_APP_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: {"Content-Type": "text/plain;charset=utf-8"},
-      body: JSON.stringify(payload)
-    }).catch(function(err){ console.warn("Google Sheets send failed", err); });
-  } catch(e) { console.warn("Google Sheets send failed", e); }
-}
+
 var $=function(i){return document.getElementById(i)};
 function ls(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}}
 $('title').textContent=EVENT.host+" слави "+EVENT.age+"-ти роденден!";
@@ -301,6 +316,7 @@ function goTo(i,fx){i=Math.max(0,Math.min(N-1,i));var fwd=i>cur;cur=i;
  if(i===N-1)setOutro();if(fwd&&fx!==false)burst()}
 $('next').onclick=function(){goTo(cur+1)};
 $('prev').onclick=function(){goTo(cur-1)};
+$('next').type='button';$('prev').type='button';
 $('go').onclick=function(){goTo(1)};
 var gifted=false;
 function setOutro(){var nm=($('nm').value||'').trim();$('ohi').textContent=nm?'Се гледаме, '+nm+'! 🎃':'Се гледаме кај мене! 🎃';$('ogift').hidden=!gifted;$('when2').textContent=$('when').textContent;$('where2').textContent=$('where').textContent}
@@ -349,9 +365,10 @@ function renderGifts(){var ul=$('gifts');ul.innerHTML='';
  $('gnote').textContent=left?'Уште '+left+' од '+GIFTS.length+' се слободни.':'Сè е земено. Сите сте прекрасни.';
  if(!shared && !window.__sheetsGiftSync)
   $('gnote').textContent+=' (Споделувањето не е вклучено овде, па изборите се зачувуваат само на овој уред.)'
+}
 async function claim(g,b){
  var name=$('nm').value.trim();
- if(!name){goTo(2,false);$('nm').focus();$('thanks').textContent='Прво внеси го името, па избери подарок.';return}
+ if(!name){goTo(2,false);$('nm').focus();$('thanks').textContent='Прво внеси го името, па избери подарок.';b.disabled=false;return}
  b.disabled=true;
  if(db){try{var ref=db.doc('gifts/'+g.id),l=await ref.acquire({ttlMs:5000});
    if(!l.acquired){b.textContent='Обиди се повторно';b.disabled=false;return}
@@ -359,9 +376,10 @@ async function claim(g,b){
    if(s.exists&&s.data().by){return}
    await ref.set({by:name,at:Date.now()});sendToSheets({type:"claim",name:name,id:g.id});rain();afterClaim();return}catch(e){}}
  taken[g.id]=name;ls('taken',taken);sendToSheets({type:"claim",name:name,id:g.id});renderGifts();
-loadTakenFromSheets();
-setInterval(loadTakenFromSheets, 10000);rain();afterClaim()}
+ setTimeout(loadTakenFromSheets, 1200);rain();afterClaim()}
 renderGifts();
+loadTakenFromSheets();
+setInterval(loadTakenFromSheets, 10000);
 
 var saved=ls('rsvp');
 if(saved){$('nm').value=saved.name;document.querySelector('input[name=going][value='+saved.going+']').checked=true;thanks(saved)}
@@ -405,5 +423,7 @@ document.querySelectorAll('.sp').forEach(function(s){s.onclick=function(){s.clas
  }catch(e){}
 })();
 </script>
+</body>
+</html>
 </body>
 </html>
