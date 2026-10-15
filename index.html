@@ -235,6 +235,38 @@ var GIFTS=[
 var SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzYfURxHII5_zra5zWKfjjDgmEDJ1NhvmB8JrkPXbApeqxnZYPXyIIj5dQDdzYDjmER/exec";
 
 function sendToSheets(payload){
+  function loadTakenFromSheets() {
+  if (!SHEETS_WEB_APP_URL) return;
+
+  var callback = '__giftState_' + Date.now() + '_' +
+    Math.floor(Math.random() * 100000);
+
+  var script = document.createElement('script');
+
+  window[callback] = function(data) {
+    try {
+      if (data && data.ok && data.taken) {
+        taken = data.taken;
+        window.__sheetsGiftSync = true;
+        renderGifts();
+      }
+    } finally {
+      delete window[callback];
+      script.remove();
+    }
+  };
+
+  script.onerror = function() {
+    delete window[callback];
+    script.remove();
+  };
+
+  script.src = SHEETS_WEB_APP_URL +
+    '?callback=' + callback +
+    '&_=' + Date.now();
+
+  document.head.appendChild(script);
+}
   if(!SHEETS_WEB_APP_URL || SHEETS_WEB_APP_URL.indexOf("PASTE_YOUR_") === 0) return;
   try {
     fetch(SHEETS_WEB_APP_URL, {
@@ -315,7 +347,8 @@ function renderGifts(){var ul=$('gifts');ul.innerHTML='';
   ul.appendChild(li)});
  var left=GIFTS.filter(function(g){return !taken[g.id]}).length;
  $('gnote').textContent=left?'Уште '+left+' од '+GIFTS.length+' се слободни.':'Сè е земено. Сите сте прекрасни.';
- if(!shared)$('gnote').textContent+=' (Споделувањето не е вклучено овде, па изборите се зачувуваат само на овој уред.)'}
+ if(!shared && !window.__sheetsGiftSync)
+  $('gnote').textContent+=' (Споделувањето не е вклучено овде, па изборите се зачувуваат само на овој уред.)'
 async function claim(g,b){
  var name=$('nm').value.trim();
  if(!name){goTo(2,false);$('nm').focus();$('thanks').textContent='Прво внеси го името, па избери подарок.';return}
@@ -325,7 +358,9 @@ async function claim(g,b){
    var s=await ref.get();
    if(s.exists&&s.data().by){return}
    await ref.set({by:name,at:Date.now()});sendToSheets({type:"claim",name:name,id:g.id});rain();afterClaim();return}catch(e){}}
- taken[g.id]=name;ls('taken',taken);sendToSheets({type:"claim",name:name,id:g.id});renderGifts();rain();afterClaim()}
+ taken[g.id]=name;ls('taken',taken);sendToSheets({type:"claim",name:name,id:g.id});renderGifts();
+loadTakenFromSheets();
+setInterval(loadTakenFromSheets, 10000);rain();afterClaim()}
 renderGifts();
 
 var saved=ls('rsvp');
